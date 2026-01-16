@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { formatDistanceToNow } from 'date-fns';
@@ -7,9 +7,10 @@ import type { SessionDetail, Message } from '../../shared/types';
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // Get project from location state
-  const project = location.state?.project as string | undefined;
+  // Get project from URL query parameter
+  const project = searchParams.get('project') || undefined;
 
   const { data: session, isLoading, error } = useQuery({
     queryKey: ['session', sessionId, project],
@@ -53,8 +54,8 @@ export default function SessionDetail() {
       <div className="session-title">{session.display || 'Untitled Session'}</div>
 
       <div className="messages">
-        {session.messages.map((message: Message) => (
-          <MessageBubble key={message.messageId} message={message} />
+        {session.messages.map((message: Message, index: number) => (
+          <MessageBubble key={`${message.messageId}-${index}`} message={message} />
         ))}
       </div>
 
@@ -217,6 +218,21 @@ function MessageBubble({ message }: { message: Message }) {
 
   const isUser = message.type === 'user';
 
+  // Handle different content types
+  let contentText: string;
+  if (typeof message.content === 'string') {
+    contentText = message.content;
+  } else if (typeof message.content === 'object' && message.content !== null) {
+    // Handle structured content (e.g., {type: 'text', text: '...'})
+    if ('text' in message.content && typeof message.content.text === 'string') {
+      contentText = message.content.text;
+    } else {
+      contentText = JSON.stringify(message.content, null, 2);
+    }
+  } else {
+    contentText = String(message.content ?? '');
+  }
+
   return (
     <div className={`message ${isUser ? 'message-user' : 'message-assistant'}`}>
       <div className="message-header">
@@ -225,7 +241,7 @@ function MessageBubble({ message }: { message: Message }) {
           {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
         </span>
       </div>
-      <div className="message-content">{message.content}</div>
+      <div className="message-content">{contentText}</div>
     </div>
   );
 }

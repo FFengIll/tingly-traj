@@ -50,8 +50,7 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
         {sessions?.map((session: SessionInfo) => (
           <Link
             key={session.sessionId}
-            to={`/session/${session.sessionId}`}
-            state={{ project: session.project }}
+            to={`/session/${session.sessionId}?project=${encodeURIComponent(session.project)}`}
             className="session-item"
           >
             <div className="session-header">
