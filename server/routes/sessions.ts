@@ -50,4 +50,29 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/sessions/:id/export - Export raw session data
+router.get('/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { project } = req.query;
+
+    if (!project) {
+      return res.status(400).json({ error: 'Project query parameter is required' });
+    }
+
+    const content = await claudeFsService.getRawSessionData(id, project as string);
+
+    if (!content) {
+      return res.status(404).json({ error: 'Session file not found' });
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${id}.jsonl"`);
+    res.send(content);
+  } catch (error) {
+    console.error('Error exporting session:', error);
+    res.status(500).json({ error: 'Failed to export session' });
+  }
+});
+
 export default router;

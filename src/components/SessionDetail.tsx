@@ -1,13 +1,16 @@
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { exportSession } from '../services/export';
 import { formatDistanceToNow } from 'date-fns';
 import type { SessionDetail, Message } from '../../shared/types';
+import { useState } from 'react';
 
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [isExporting, setIsExporting] = useState(false);
 
   // Get project from URL query parameter
   const project = searchParams.get('project') || undefined;
@@ -39,15 +42,39 @@ export default function SessionDetail() {
     return path.split('/').pop() || path;
   };
 
+  const handleExport = async () => {
+    if (!sessionId || !project) return;
+    setIsExporting(true);
+    try {
+      await exportSession(sessionId, project);
+    } catch (error) {
+      alert('Failed to export session');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="session-detail-container">
       <div className="session-detail-header">
-        <button onClick={() => navigate(-1)} className="back-button">← Back</button>
-        <div className="header-info">
-          <span className="project-badge">{getProjectName(session.project)}</span>
-          <span className="timestamp">
-            {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
-          </span>
+        <div className="header-left">
+          <button onClick={() => navigate(-1)} className="back-button">← Back</button>
+        </div>
+        <div className="header-right">
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="export-button"
+            title="Export raw session data"
+          >
+            {isExporting ? '⏳ Exporting...' : '⬇ Export'}
+          </button>
+          <div className="header-info">
+            <span className="project-badge">{getProjectName(session.project)}</span>
+            <span className="timestamp">
+              {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -91,6 +118,17 @@ export default function SessionDetail() {
           margin-bottom: 16px;
         }
 
+        .header-left {
+          display: flex;
+          align-items: center;
+        }
+
+        .header-right {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
         .back-button {
           background: transparent;
           border: 1px solid #444;
@@ -105,6 +143,30 @@ export default function SessionDetail() {
         .back-button:hover {
           background: #252525;
           border-color: #666;
+        }
+
+        .export-button {
+          background: #1a1a1a;
+          border: 1px solid #7c3aed;
+          color: #7c3aed;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: all 0.15s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .export-button:hover:not(:disabled) {
+          background: rgba(124, 58, 237, 0.1);
+          border-color: #8b5cf6;
+        }
+
+        .export-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .header-info {

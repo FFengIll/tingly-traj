@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import { exportSession } from '../services/export';
 import { formatDistanceToNow } from 'date-fns';
 import type { SessionInfo } from '../../shared/types';
+import { useState } from 'react';
 
 interface SessionListProps {
   selectedProject?: string;
@@ -10,6 +12,8 @@ interface SessionListProps {
 }
 
 export default function SessionList({ selectedProject, searchQuery }: SessionListProps) {
+  const [exportingSession, setExportingSession] = useState<string | null>(null);
+
   const { data: sessions, isLoading, error } = useQuery({
     queryKey: ['sessions', selectedProject, searchQuery],
     queryFn: () => api.getSessions({
@@ -21,6 +25,19 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
 
   const getProjectName = (path: string) => {
     return path.split('/').pop() || path;
+  };
+
+  const handleExport = async (e: React.MouseEvent, sessionId: string, project: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExportingSession(sessionId);
+    try {
+      await exportSession(sessionId, project);
+    } catch (error) {
+      alert('Failed to export session');
+    } finally {
+      setExportingSession(null);
+    }
   };
 
   if (isLoading) {
@@ -53,13 +70,23 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
             to={`/session/${session.sessionId}?project=${encodeURIComponent(session.project)}`}
             className="session-item"
           >
-            <div className="session-header">
-              <span className="project-badge">{getProjectName(session.project)}</span>
-              <span className="timestamp">
-                {formatDistanceToNow(new Date(session.timestamp), { addSuffix: true })}
-              </span>
+            <div className="session-content">
+              <div className="session-header">
+                <span className="project-badge">{getProjectName(session.project)}</span>
+                <span className="timestamp">
+                  {formatDistanceToNow(new Date(session.timestamp), { addSuffix: true })}
+                </span>
+              </div>
+              <div className="session-display">{session.display || 'No description'}</div>
             </div>
-            <div className="session-display">{session.display || 'No description'}</div>
+            <button
+              className="export-icon-btn"
+              onClick={(e) => handleExport(e, session.sessionId, session.project)}
+              disabled={exportingSession === session.sessionId}
+              title="Export session data"
+            >
+              {exportingSession === session.sessionId ? '⏳' : '⬇'}
+            </button>
           </Link>
         ))}
 
@@ -113,7 +140,9 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
         }
 
         .session-item {
-          display: block;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           padding: 16px;
           background: #1a1a1a;
           border: 1px solid #333;
@@ -121,12 +150,18 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
           text-decoration: none;
           transition: all 0.15s ease;
           cursor: pointer;
+          gap: 12px;
         }
 
         .session-item:hover {
           background: #252525;
           border-color: #444;
           transform: translateY(-1px);
+        }
+
+        .session-content {
+          flex: 1;
+          min-width: 0;
         }
 
         .session-header {
@@ -159,6 +194,33 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
+        }
+
+        .export-icon-btn {
+          background: transparent;
+          border: none;
+          color: #666;
+          padding: 8px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.15s ease;
+          flex-shrink: 0;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .export-icon-btn:hover:not(:disabled) {
+          background: rgba(124, 58, 237, 0.1);
+          color: #7c3aed;
+        }
+
+        .export-icon-btn:disabled {
+          opacity: 0.6;
+          cursor: wait;
         }
       `}</style>
     </div>

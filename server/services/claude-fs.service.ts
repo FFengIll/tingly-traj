@@ -205,4 +205,18 @@ export const claudeFsService: ClaudeFsService = {
       }))
       .sort((a, b) => b.lastActivity - a.lastActivity);
   },
+
+  // Get raw session file content for export
+  async getRawSessionData(sessionId: string, projectPath: string): Promise<string | null> {
+    const encodedProject = encodeProjectPath(projectPath);
+    const sessionPath = path.join(PROJECTS_DIR, encodedProject, `${sessionId}.jsonl`);
+
+    try {
+      const content = await fs.readFile(sessionPath, 'utf-8');
+      return content;
+    } catch (error) {
+      console.error('Error reading session file for export:', error);
+      return null;
+    }
+  },
 };

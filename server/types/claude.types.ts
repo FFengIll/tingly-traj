@@ -30,4 +30,5 @@ export interface ClaudeFsService {
   getSessionInfos(query?: { project?: string; search?: string; limit?: number; offset?: number }): Promise<SessionInfo[]>;
   getSessionDetail(sessionId: string, projectPath: string): Promise<SessionDetail | null>;
   getProjectSummaries(): Promise<ProjectSummary[]>;
+  getRawSessionData(sessionId: string, projectPath: string): Promise<string | null>;
 }
