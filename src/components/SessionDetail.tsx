@@ -5,6 +5,22 @@ import { exportSession } from '../services/export';
 import { formatDistanceToNow } from 'date-fns';
 import type { SessionDetail, Message } from '../../shared/types';
 import { useState } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Chip,
+  CircularProgress,
+  Alert,
+  Stack,
+  Avatar,
+} from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DownloadIcon from '@mui/icons-material/Download';
+import PersonIcon from '@mui/icons-material/Person';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import FolderIcon from '@mui/icons-material/Folder';
 
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -23,18 +39,25 @@ export default function SessionDetail() {
 
   if (isLoading) {
     return (
-      <div className="session-detail-container">
-        <div className="loading">Loading session...</div>
-      </div>
+      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   if (error || !session) {
     return (
-      <div className="session-detail-container">
-        <div className="error">Error loading session</div>
-        <Link to="/" className="back-link">← Back to sessions</Link>
-      </div>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Error loading session</Alert>
+        <Button
+          component={Link}
+          to="/"
+          startIcon={<ArrowBackIcon />}
+          sx={{ mt: 2 }}
+        >
+          Back to sessions
+        </Button>
+      </Box>
     );
   }
 
@@ -47,7 +70,7 @@ export default function SessionDetail() {
     setIsExporting(true);
     try {
       await exportSession(sessionId, project);
-    } catch (error) {
+    } catch {
       alert('Failed to export session');
     } finally {
       setIsExporting(false);
@@ -55,226 +78,82 @@ export default function SessionDetail() {
   };
 
   return (
-    <div className="session-detail-container">
-      <div className="session-detail-header">
-        <div className="header-left">
-          <button onClick={() => navigate(-1)} className="back-button">← Back</button>
-        </div>
-        <div className="header-right">
-          <button
+    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Button
+          onClick={() => navigate(-1)}
+          startIcon={<ArrowBackIcon />}
+          variant="outlined"
+          size="small"
+        >
+          Back
+        </Button>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Button
             onClick={handleExport}
             disabled={isExporting}
-            className="export-button"
-            title="Export raw session data"
+            variant="outlined"
+            startIcon={isExporting ? <CircularProgress size={16} /> : <DownloadIcon />}
+            size="small"
           >
-            {isExporting ? '⏳ Exporting...' : '⬇ Export'}
-          </button>
-          <div className="header-info">
-            <span className="project-badge">{getProjectName(session.project)}</span>
-            <span className="timestamp">
+            {isExporting ? 'Exporting...' : 'Export'}
+          </Button>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Chip
+              icon={<FolderIcon sx={{ fontSize: 16 }} />}
+              label={getProjectName(session.project)}
+              size="small"
+              sx={{
+                fontWeight: 600,
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                height: 24,
+              }}
+            />
+            <Typography variant="caption" sx={{ color: 'text.disabled' }}>
               {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
-            </span>
-          </div>
-        </div>
-      </div>
+            </Typography>
+          </Stack>
+        </Stack>
+      </Stack>
 
-      <div className="session-title">{session.display || 'Untitled Session'}</div>
+      <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, pb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        {session.display || 'Untitled Session'}
+      </Typography>
 
-      <div className="messages">
+      <Stack spacing={2}>
         {session.messages.map((message: Message, index: number) => (
           <MessageBubble key={`${message.messageId}-${index}`} message={message} />
         ))}
-      </div>
-
-      <style>{`
-        .session-detail-container {
-          padding: 24px;
-          max-width: 900px;
-          margin: 0 auto;
-        }
-
-        .loading,
-        .error {
-          text-align: center;
-          padding: 60px 20px;
-          color: #888;
-        }
-
-        .error {
-          color: #f87171;
-        }
-
-        .back-link {
-          display: inline-block;
-          margin-top: 16px;
-          color: #7c3aed;
-          text-decoration: none;
-        }
-
-        .session-detail-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .back-button {
-          background: transparent;
-          border: 1px solid #444;
-          color: #ccc;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 0.9rem;
-          transition: all 0.15s ease;
-        }
-
-        .back-button:hover {
-          background: #252525;
-          border-color: #666;
-        }
-
-        .export-button {
-          background: #1a1a1a;
-          border: 1px solid #7c3aed;
-          color: #7c3aed;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 0.9rem;
-          transition: all 0.15s ease;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .export-button:hover:not(:disabled) {
-          background: rgba(124, 58, 237, 0.1);
-          border-color: #8b5cf6;
-        }
-
-        .export-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .header-info {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .project-badge {
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: #7c3aed;
-          background: rgba(124, 58, 237, 0.1);
-          padding: 4px 8px;
-          border-radius: 4px;
-        }
-
-        .timestamp {
-          font-size: 0.8rem;
-          color: #666;
-        }
-
-        .session-title {
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: #fff;
-          margin-bottom: 24px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid #333;
-        }
-
-        .messages {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .message {
-          padding: 16px;
-          border-radius: 8px;
-          line-height: 1.5;
-        }
-
-        .message-user {
-          background: #1a1a1a;
-          border: 1px solid #333;
-        }
-
-        .message-assistant {
-          background: #121212;
-          border: 1px solid #333;
-        }
-
-        .message-snapshot {
-          background: rgba(124, 58, 237, 0.05);
-          border: 1px dashed rgba(124, 58, 237, 0.3);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .snapshot-indicator {
-          color: #7c3aed;
-          font-size: 0.85rem;
-        }
-
-        .message-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-
-        .role {
-          font-size: 0.75rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .message-user .role {
-          color: #22c55e;
-        }
-
-        .message-assistant .role {
-          color: #3b82f6;
-        }
-
-        .message-content {
-          color: #ccc;
-          white-space: pre-wrap;
-          word-break: break-word;
-          font-size: 0.9rem;
-        }
-      `}</style>
-    </div>
+      </Stack>
+    </Box>
   );
 }
 
 function MessageBubble({ message }: { message: Message }) {
   if (message.type === 'file-history-snapshot') {
     return (
-      <div className="message message-snapshot">
-        <span className="snapshot-indicator">📁 File History Snapshot</span>
-        <span className="timestamp">
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          bgcolor: 'primary.main',
+          opacity: 0.05,
+          borderColor: 'primary.main',
+          borderStyle: 'dashed',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'primary.main' }}>
+          <FolderIcon fontSize="small" />
+          <Typography variant="body2">File History Snapshot</Typography>
+        </Stack>
+        <Typography variant="caption" sx={{ color: 'text.disabled' }}>
           {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
-        </span>
-      </div>
+        </Typography>
+      </Paper>
     );
   }
 
@@ -286,8 +165,9 @@ function MessageBubble({ message }: { message: Message }) {
     contentText = message.content;
   } else if (typeof message.content === 'object' && message.content !== null) {
     // Handle structured content (e.g., {type: 'text', text: '...'})
-    if ('text' in message.content && typeof message.content.text === 'string') {
-      contentText = message.content.text;
+    const contentObj = message.content as Record<string, unknown>;
+    if ('text' in contentObj && typeof contentObj.text === 'string') {
+      contentText = contentObj.text;
     } else {
       contentText = JSON.stringify(message.content, null, 2);
     }
@@ -296,14 +176,51 @@ function MessageBubble({ message }: { message: Message }) {
   }
 
   return (
-    <div className={`message ${isUser ? 'message-user' : 'message-assistant'}`}>
-      <div className="message-header">
-        <span className="role">{isUser ? 'You' : 'Claude'}</span>
-        <span className="timestamp">
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        bgcolor: isUser ? 'background.paper' : '#121212',
+        borderColor: 'divider',
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Avatar
+            sx={{
+              width: 24,
+              height: 24,
+              bgcolor: isUser ? 'success.main' : 'info.main',
+            }}
+          >
+            {isUser ? <PersonIcon fontSize="small" /> : <SmartToyIcon fontSize="small" />}
+          </Avatar>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              color: isUser ? 'success.main' : 'info.main',
+            }}
+          >
+            {isUser ? 'You' : 'Claude'}
+          </Typography>
+        </Stack>
+        <Typography variant="caption" sx={{ color: 'text.disabled' }}>
           {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
-        </span>
-      </div>
-      <div className="message-content">{contentText}</div>
-    </div>
+        </Typography>
+      </Stack>
+      <Typography
+        variant="body2"
+        sx={{
+          color: 'text.secondary',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
+        {contentText}
+      </Typography>
+    </Paper>
   );
 }

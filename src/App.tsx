@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
 import { useState } from 'react';
+import theme from './theme';
 import Layout from './components/Layout';
 import SessionList from './components/SessionList';
 import SessionDetail from './components/SessionDetail';
@@ -19,16 +22,19 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout onProjectChange={setSelectedProject} onSearchChange={setSearchQuery} />}>
-            <Route index element={<SessionList selectedProject={selectedProject} searchQuery={searchQuery} />}></Route>
-            <Route path="session/:sessionId" element={<SessionDetail />}></Route>
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout onProjectChange={setSelectedProject} onSearchChange={setSearchQuery} />}>
+              <Route index element={<SessionList selectedProject={selectedProject} searchQuery={searchQuery} />}></Route>
+              <Route path="session/:sessionId" element={<SessionDetail />}></Route>
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

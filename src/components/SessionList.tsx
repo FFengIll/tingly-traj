@@ -5,6 +5,19 @@ import { exportSession } from '../services/export';
 import { formatDistanceToNow } from 'date-fns';
 import type { SessionInfo } from '../../shared/types';
 import { useState } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Chip,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Stack,
+} from '@mui/material';
+import DownloadIcon from '@mui/icons-material/Download';
+import LoadingIcon from '@mui/icons-material/HourglassEmpty';
 
 interface SessionListProps {
   selectedProject?: string;
@@ -33,7 +46,7 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
     setExportingSession(sessionId);
     try {
       await exportSession(sessionId, project);
-    } catch (error) {
+    } catch {
       alert('Failed to export session');
     } finally {
       setExportingSession(null);
@@ -42,187 +55,110 @@ export default function SessionList({ selectedProject, searchQuery }: SessionLis
 
   if (isLoading) {
     return (
-      <div className="session-list-container">
-        <div className="loading">Loading sessions...</div>
-      </div>
+      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <div className="session-list-container">
-        <div className="error">Error loading sessions: {(error as Error).message}</div>
-      </div>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Error loading sessions: {(error as Error).message}</Alert>
+      </Box>
     );
   }
 
   return (
-    <div className="session-list-container">
-      <div className="session-list-header">
-        <h2>Sessions</h2>
-        <span className="count">{sessions?.length || 0} sessions</span>
-      </div>
+    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto' }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          Sessions
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.disabled' }}>
+          {sessions?.length || 0} sessions
+        </Typography>
+      </Stack>
 
-      <div className="session-list">
+      <Stack spacing={1}>
         {sessions?.map((session: SessionInfo) => (
-          <Link
+          <Card
             key={session.sessionId}
+            component={Link}
             to={`/session/${session.sessionId}?project=${encodeURIComponent(session.project)}`}
-            className="session-item"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              textDecoration: 'none',
+              transition: 'all 0.15s ease',
+              cursor: 'pointer',
+              border: 1,
+              borderColor: 'divider',
+              '&:hover': {
+                borderColor: 'primary.light',
+                transform: 'translateY(-1px)',
+              },
+            }}
           >
-            <div className="session-content">
-              <div className="session-header">
-                <span className="project-badge">{getProjectName(session.project)}</span>
-                <span className="timestamp">
+            <CardContent sx={{ flex: 1, minWidth: 0, p: 2, '&:last-child': { pb: 2 } }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                <Chip
+                  label={getProjectName(session.project)}
+                  size="small"
+                  sx={{
+                    fontWeight: 600,
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    height: 24,
+                  }}
+                />
+                <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>
                   {formatDistanceToNow(new Date(session.timestamp), { addSuffix: true })}
-                </span>
-              </div>
-              <div className="session-display">{session.display || 'No description'}</div>
-            </div>
-            <button
-              className="export-icon-btn"
-              onClick={(e) => handleExport(e, session.sessionId, session.project)}
-              disabled={exportingSession === session.sessionId}
-              title="Export session data"
-            >
-              {exportingSession === session.sessionId ? '⏳' : '⬇'}
-            </button>
-          </Link>
+                </Typography>
+              </Stack>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {session.display || 'No description'}
+              </Typography>
+            </CardContent>
+            <Box sx={{ p: 1, pr: 2 }}>
+              <IconButton
+                onClick={(e) => handleExport(e, session.sessionId, session.project)}
+                disabled={exportingSession === session.sessionId}
+                title="Export session data"
+                size="small"
+                sx={{
+                  color: 'text.disabled',
+                  '&:hover:not(:disabled)': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                  },
+                  '&:disabled': {
+                    opacity: 0.6,
+                  },
+                }}
+              >
+                {exportingSession === session.sessionId ? <LoadingIcon /> : <DownloadIcon />}
+              </IconButton>
+            </Box>
+          </Card>
         ))}
 
         {sessions?.length === 0 && (
-          <div className="empty-state">No sessions found</div>
+          <Box sx={{ textAlign: 'center', py: 7.5, color: 'text.disabled' }}>
+            <Typography>No sessions found</Typography>
+          </Box>
         )}
-      </div>
-
-      <style>{`
-        .session-list-container {
-          padding: 24px;
-          max-width: 900px;
-          margin: 0 auto;
-        }
-
-        .session-list-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-        }
-
-        .session-list-header h2 {
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: #fff;
-        }
-
-        .count {
-          color: #888;
-          font-size: 0.9rem;
-        }
-
-        .loading,
-        .error,
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          color: #888;
-          font-size: 1rem;
-        }
-
-        .error {
-          color: #f87171;
-        }
-
-        .session-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .session-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px;
-          background: #1a1a1a;
-          border: 1px solid #333;
-          border-radius: 8px;
-          text-decoration: none;
-          transition: all 0.15s ease;
-          cursor: pointer;
-          gap: 12px;
-        }
-
-        .session-item:hover {
-          background: #252525;
-          border-color: #444;
-          transform: translateY(-1px);
-        }
-
-        .session-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .session-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-
-        .project-badge {
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: #7c3aed;
-          background: rgba(124, 58, 237, 0.1);
-          padding: 4px 8px;
-          border-radius: 4px;
-        }
-
-        .timestamp {
-          font-size: 0.75rem;
-          color: #666;
-        }
-
-        .session-display {
-          color: #ccc;
-          font-size: 0.9rem;
-          line-height: 1.4;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-        }
-
-        .export-icon-btn {
-          background: transparent;
-          border: none;
-          color: #666;
-          padding: 8px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 1rem;
-          transition: all 0.15s ease;
-          flex-shrink: 0;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .export-icon-btn:hover:not(:disabled) {
-          background: rgba(124, 58, 237, 0.1);
-          color: #7c3aed;
-        }
-
-        .export-icon-btn:disabled {
-          opacity: 0.6;
-          cursor: wait;
-        }
-      `}</style>
-    </div>
+      </Stack>
+    </Box>
   );
 }
