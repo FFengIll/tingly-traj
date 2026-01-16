@@ -25,11 +25,12 @@ import ThemeSwitcher from './ThemeSwitcher';
 import { useState, useEffect, useRef } from 'react';
 
 interface LayoutProps {
+  selectedProject?: string;
   onProjectChange: (project: string | undefined) => void;
   onSearchChange: (search: string) => void;
 }
 
-export default function Layout({ onProjectChange, onSearchChange }: LayoutProps) {
+export default function Layout({ selectedProject, onProjectChange, onSearchChange }: LayoutProps) {
   const navigate = useNavigate();
   const [showScrollTop, setShowScrollTop] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -123,6 +124,7 @@ export default function Layout({ onProjectChange, onSearchChange }: LayoutProps)
               labelId="project-label"
               id="project"
               label="Project"
+              value={selectedProject ?? 'all'}
               onChange={(e) => handleProjectChange(e.target.value as string)}
               sx={{
                 bgcolor: '#2a2a2a',

@@ -178,7 +178,7 @@ export default function Pagination({ count, page, rowsPerPage, onPageChange }: P
                 <Box
                   key={`ellipsis-${idx}`}
                   sx={{
-                    minWidth: 36,
+                    width: 36,
                     display: 'flex',
                     justifyContent: 'center',
                     color: 'text.disabled',
@@ -215,7 +215,7 @@ export default function Pagination({ count, page, rowsPerPage, onPageChange }: P
 
       {/* Jump to page input */}
       <Stack spacing={1} direction="row" alignItems="center">
-        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
           Jump to page:
         </Typography>
         <TextField
@@ -223,9 +223,9 @@ export default function Pagination({ count, page, rowsPerPage, onPageChange }: P
           value={jumpInput}
           onChange={(e) => setJumpInput(e.target.value)}
           onKeyDown={handleJumpKeyPress}
-          placeholder={`${page + 1}/${totalPages}`}
+          placeholder="Page number"
           sx={{
-            width: 100,
+            width: 110,
             '& .MuiInputBase-input': {
               fontSize: '0.875rem',
               py: 0.5,
@@ -233,6 +233,9 @@ export default function Pagination({ count, page, rowsPerPage, onPageChange }: P
             },
           }}
         />
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+          of {totalPages}
+        </Typography>
       </Stack>
     </Stack>
   );

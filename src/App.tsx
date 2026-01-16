@@ -28,7 +28,7 @@ function AppContent() {
       <CssBaseline />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Layout onProjectChange={setSelectedProject} onSearchChange={setSearchQuery} />}>
+          <Route path="/" element={<Layout selectedProject={selectedProject} onProjectChange={setSelectedProject} onSearchChange={setSearchQuery} />}>
             <Route index element={<SessionList selectedProject={selectedProject} searchQuery={searchQuery} />}></Route>
             <Route path="session/:sessionId" element={<SessionDetail />}></Route>
           </Route>
