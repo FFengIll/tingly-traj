@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# Tingly Traj
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Claude Code session trajectory management and visualization tool.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Web Service**: Full-stack app with Express + React
+- **CLI Tool**: Extract, search, and render Claude Code session data
+- **HTML Rendering**: Render session data as readable HTML pages
 
-## React Compiler
+## Development
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Start dev environment (server + frontend)
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Server Usage
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The web server loads your local Claude Code data from `~/.claude/`:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **History**: Reads `~/.claude/history.jsonl` for session list
+- **Sessions**: Reads `~/.claude/projects/{project-path}/{session-id}.jsonl` for details
+
+Once started via `pnpm dev`, access the web UI at `http://localhost:5173` to browse and search your Claude Code session history.
+
+## CLI Usage
+
+### List all rounds
+
+```bash
+pnpm cli list traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl
+```
+
+### Extract rounds
+
+```bash
+# Extract all rounds → outputs: {basename}-rounds.json
+pnpm cli extract traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl -o ./output
+
+# Extract specific round → outputs to stdout
+pnpm cli extract traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl -r 0 > round-0.jsonl
+
+# Search by keyword → outputs: {basename}-rounds-{first}-{last}.json
+pnpm cli extract traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl -k "bugfix" -o ./output
+```
+
+### Render HTML
+
+```bash
+# Render single file → outputs: {basename}.html (single page with TOC)
+pnpm cli render ./output/tb-bugfix-ci-rounds.json -o ./html
+
+# Batch render directory → scans for *-rounds.json, renders each to HTML
+pnpm cli render-all ./output -o ./html --theme dark
+```
+
+## Project Structure
+
+```
+cc-pick/
+├── cli/          # CLI tool
+├── server/       # Express server
+├── src/          # React frontend
+└── shared/       # Shared code
 ```
