@@ -135,18 +135,8 @@ function renderGroupedEntry(grouped: GroupedEntry): string {
     if (!content) continue;
 
     if (typeof content === 'string') {
-      // Handle string content (e.g., user command messages)
-      const commandMatch = content.match(/<command-name>([^<]+)<\/command-name>/);
-      if (commandMatch) {
-        const argsMatch = content.match(/<command-args>([^<]*)<\/command-args>/);
-        const args = argsMatch ? argsMatch[1].trim() : '';
-        combinedContent += `<div class="command">
-          <span class="command-name">${escapeHtml(commandMatch[1])}</span>
-          ${args ? `<span class="command-args">${escapeHtml(args)}</span>` : ''}
-        </div>`;
-      } else {
-        combinedContent += `<pre class="content-text">${escapeHtml(content)}</pre>`;
-      }
+      // Handle string content - display as-is with HTML escaping
+      combinedContent += `<pre class="content-text">${escapeHtml(content)}</pre>`;
     } else if (Array.isArray(content)) {
       for (const item of content as Array<Record<string, unknown>>) {
         const itemType = item.type as string;
