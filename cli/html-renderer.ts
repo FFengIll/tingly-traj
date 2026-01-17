@@ -22,25 +22,6 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Generate a unique ID for an entry
- */
-function generateEntryId(index: number): string {
-  return `entry-${index}`;
-}
-
-/**
- * Estimate content height (rough estimation based on content length)
- */
-function shouldLimitContent(entry: ClaudeRawEntry): boolean {
-  const content = entry.message?.content;
-  if (!content) return false;
-
-  // Rough estimation: if content is longer than ~2000 chars, it might be too long
-  const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
-  return contentStr.length > 2000;
-}
-
-/**
  * Format content for HTML display
  */
 function formatContent(entry: ClaudeRawEntry): string {
@@ -78,9 +59,14 @@ function formatContent(entry: ClaudeRawEntry): string {
       if (itemType === 'text') {
         html += `<div class="content-item text">${formatTextContent((item.text as string) || '')}</div>`;
       } else if (itemType === 'tool_use') {
+        const toolName = (item.name as string) || 'unknown';
+        const toolInput = item.input;
+        const hasInput = toolInput && typeof toolInput === 'object' && Object.keys(toolInput).length > 0;
+
         html += `<div class="content-item tool-use">
           <span class="tool-badge">🔧 Tool Use</span>
-          <span class="tool-name">${escapeHtml((item.name as string) || 'unknown')}</span>
+          <span class="tool-name">${escapeHtml(toolName)}</span>
+          ${hasInput ? `<pre class="tool-input-content">${escapeHtml(JSON.stringify(toolInput, null, 2))}</pre>` : ''}
         </div>`;
       } else if (itemType === 'tool_result') {
         const isError = (item.is_error as boolean) || false;
@@ -91,10 +77,14 @@ function formatContent(entry: ClaudeRawEntry): string {
           <pre class="result-content">${escapeHtml(String(resultContent))}</pre>
         </div>`;
       } else if (itemType === 'thinking') {
-        html += `<details class="content-item thinking" open>
-          <summary>💭 Thinking</summary>
-          <pre>${escapeHtml((item.text as string) || '')}</pre>
-        </details>`;
+        const thinkingText = (item.text as string) || '';
+        // Only show thinking if there's actual content
+        if (thinkingText.trim()) {
+          html += `<details class="content-item thinking" open>
+            <summary>💭 Thinking</summary>
+            <pre class="thinking-content">${escapeHtml(thinkingText)}</pre>
+          </details>`;
+        }
       } else {
         html += `<div class="content-item unknown">
           <span class="item-type">${escapeHtml(itemType)}</span>
@@ -147,11 +137,9 @@ function renderEntry(entry: ClaudeRawEntry, index: number): string {
   const typeInfo = getMessageTypeInfo(entry.type);
   const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '';
   const uuid = entry.uuid ? `<span class="uuid" title="${escapeHtml(entry.uuid)}">${entry.uuid.substring(0, 8)}...</span>` : '';
-  const entryId = generateEntryId(index);
-  const needsLimit = shouldLimitContent(entry);
 
   return `
-    <div class="entry ${typeInfo.class}" data-needs-limit="${needsLimit}">
+    <div class="entry ${typeInfo.class}">
       <div class="entry-header">
         <span class="entry-icon">${typeInfo.icon}</span>
         <span class="entry-type">${typeInfo.label}</span>
@@ -160,15 +148,9 @@ function renderEntry(entry: ClaudeRawEntry, index: number): string {
           ${timestamp ? `<span class="timestamp">${timestamp}</span>` : ''}
         </span>
       </div>
-      <div class="entry-content" id="${entryId}">
+      <div class="entry-content">
         ${formatContent(entry)}
       </div>
-      ${needsLimit ? `
-        <button class="expand-btn" onclick="toggleEntry('${entryId}', this)" aria-label="Toggle content">
-          <span class="btn-text">Show more</span>
-          <span class="btn-icon">▼</span>
-        </button>
-      ` : ''}
     </div>
   `;
 }
@@ -205,8 +187,6 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
       --system-bg: #fff3e0;
       --error-bg: #fee2e2;
       --success-bg: #dcfce7;
-      --expand-bg: #f3f4f6;
-      --expand-hover: #e5e7eb;
     }
 
     .dark-theme {
@@ -222,8 +202,6 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
       --system-bg: #3d2914;
       --error-bg: #3f1a1a;
       --success-bg: #1a3f1a;
-      --expand-bg: #374151;
-      --expand-hover: #4b5563;
     }
 
     * { box-sizing: border-box; }
@@ -297,63 +275,6 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
 
     .entry-content {
       padding: 16px;
-      max-height: 400px;
-      overflow: hidden;
-      position: relative;
-      transition: max-height 0.3s ease-out;
-    }
-
-    .entry-content.collapsed {
-      max-height: 400px;
-    }
-
-    .entry-content.collapsed::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 60px;
-      background: linear-gradient(transparent, var(--bg-entry));
-      pointer-events: none;
-    }
-
-    .entry-content.expanded {
-      max-height: none;
-    }
-
-    .entry-content.expanded::after {
-      display: none;
-    }
-
-    .expand-btn {
-      width: 100%;
-      padding: 12px 16px;
-      background: var(--expand-bg);
-      border: none;
-      border-top: 1px solid var(--border-color);
-      color: var(--text-primary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-size: 0.9em;
-      font-weight: 500;
-      transition: background 0.2s ease;
-    }
-
-    .expand-btn:hover {
-      background: var(--expand-hover);
-    }
-
-    .expand-btn .btn-icon {
-      transition: transform 0.3s ease;
-      font-size: 0.8em;
-    }
-
-    .expand-btn.expanded .btn-icon {
-      transform: rotate(180deg);
     }
 
     .user-message { border-left: 4px solid #2563eb; }
@@ -404,6 +325,22 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
     }
 
     .tool-use .tool-badge { background: #8b5cf6; color: white; }
+    .tool-name {
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    .tool-input-content {
+      margin: 10px 0 0 0;
+      padding: 12px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      font-size: 0.85em;
+      overflow-x: auto;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
     .tool-result { border-left-color: #10b981; }
     .tool-result.error { border-left-color: #ef4444; }
     .tool-result .tool-badge { background: #10b981; color: white; }
@@ -430,7 +367,7 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
       color: #a855f7;
     }
 
-    .thinking pre {
+    .thinking-content {
       margin: 10px 0 0 0;
       padding: 12px;
       background: var(--bg-primary);
@@ -438,6 +375,8 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
       font-size: 0.9em;
       max-height: 300px;
       overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     .summary {
@@ -507,38 +446,6 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
       ${entriesHtml}
     </div>
   </div>
-
-  <script>
-    // Toggle entry content visibility
-    function toggleEntry(entryId, button) {
-      const content = document.getElementById(entryId);
-      const btnText = button.querySelector('.btn-text');
-      const isExpanded = content.classList.contains('expanded');
-
-      if (isExpanded) {
-        content.classList.remove('expanded');
-        content.classList.add('collapsed');
-        button.classList.remove('expanded');
-        btnText.textContent = 'Show more';
-      } else {
-        content.classList.remove('collapsed');
-        content.classList.add('expanded');
-        button.classList.add('expanded');
-        btnText.textContent = 'Show less';
-      }
-    }
-
-    // Initialize entries with long content as collapsed
-    document.addEventListener('DOMContentLoaded', function() {
-      const entries = document.querySelectorAll('.entry[data-needs-limit="true"]');
-      entries.forEach(function(entry) {
-        const content = entry.querySelector('.entry-content');
-        if (content) {
-          content.classList.add('collapsed');
-        }
-      });
-    });
-  </script>
 </body>
 </html>`;
 }
