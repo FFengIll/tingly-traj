@@ -28,6 +28,21 @@ function escapeHtml(text: string): string {
 }
 
 /**
+ * Check if a user message is a tool result (system-generated, not actual user input)
+ */
+function isToolResultUserEntry(entry: ClaudeRawEntry): boolean {
+  if (entry.type === 'user' && entry.message && typeof entry.message === 'object') {
+    const content = (entry.message as Record<string, unknown>).content;
+    if (Array.isArray(content)) {
+      return content.some((item: unknown) =>
+        typeof item === 'object' && item !== null && (item as Record<string, unknown>).type === 'tool_result'
+      );
+    }
+  }
+  return false;
+}
+
+/**
  * Group entries by message.id
  */
 function groupEntriesById(entries: { rawContent: string }[]): GroupedEntry[] {
@@ -119,9 +134,23 @@ function renderGroupedEntry(grouped: GroupedEntry): string {
     const content = entry.message?.content;
     if (!content) continue;
 
-    if (Array.isArray(content)) {
+    if (typeof content === 'string') {
+      // Handle string content (e.g., user command messages)
+      const commandMatch = content.match(/<command-name>([^<]+)<\/command-name>/);
+      if (commandMatch) {
+        const argsMatch = content.match(/<command-args>([^<]*)<\/command-args>/);
+        const args = argsMatch ? argsMatch[1].trim() : '';
+        combinedContent += `<div class="command">
+          <span class="command-name">${escapeHtml(commandMatch[1])}</span>
+          ${args ? `<span class="command-args">${escapeHtml(args)}</span>` : ''}
+        </div>`;
+      } else {
+        combinedContent += `<pre class="content-text">${escapeHtml(content)}</pre>`;
+      }
+    } else if (Array.isArray(content)) {
       for (const item of content as Array<Record<string, unknown>>) {
         const itemType = item.type as string;
+
         if (itemType === 'text') {
           combinedContent += `<div class="content-item text">${formatTextContent((item.text as string) || '')}</div>`;
         } else if (itemType === 'tool_use') {
