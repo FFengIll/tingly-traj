@@ -1,0 +1,552 @@
+// HTML renderer for Claude Code rounds
+import type { Round, ClaudeRawEntry } from './types.ts';
+import * as path from 'node:path';
+
+interface RenderOptions {
+  title?: string;
+  theme?: 'light' | 'dark';
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+/**
+ * Generate a unique ID for an entry
+ */
+function generateEntryId(index: number): string {
+  return `entry-${index}`;
+}
+
+/**
+ * Estimate content height (rough estimation based on content length)
+ */
+function shouldLimitContent(entry: ClaudeRawEntry): boolean {
+  const content = entry.message?.content;
+  if (!content) return false;
+
+  // Rough estimation: if content is longer than ~2000 chars, it might be too long
+  const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+  return contentStr.length > 2000;
+}
+
+/**
+ * Format content for HTML display
+ */
+function formatContent(entry: ClaudeRawEntry): string {
+  if (entry.type === 'summary') {
+    return `<div class="summary">
+      <span class="summary-icon">📋</span>
+      <span class="summary-text">${escapeHtml((entry as Record<string, unknown>).summary as string || 'Summary')}</span>
+    </div>`;
+  }
+
+  const content = entry.message?.content;
+  if (!content) {
+    return '<em class="no-content">No content</em>';
+  }
+
+  if (typeof content === 'string') {
+    // Check for command messages
+    const commandMatch = content.match(/<command-name>([^<]+)<\/command-name>/);
+    if (commandMatch) {
+      const argsMatch = content.match(/<command-args>([^<]*)<\/command-args>/);
+      const args = argsMatch ? argsMatch[1].trim() : '';
+      return `<div class="command">
+        <span class="command-name">${escapeHtml(commandMatch[1])}</span>
+        ${args ? `<span class="command-args">${escapeHtml(args)}</span>` : ''}
+      </div>`;
+    }
+    return `<pre class="content-text">${escapeHtml(content)}</pre>`;
+  }
+
+  if (Array.isArray(content)) {
+    let html = '<div class="content-array">';
+
+    for (const item of content as Array<Record<string, unknown>>) {
+      const itemType = item.type as string;
+      if (itemType === 'text') {
+        html += `<div class="content-item text">${formatTextContent((item.text as string) || '')}</div>`;
+      } else if (itemType === 'tool_use') {
+        html += `<div class="content-item tool-use">
+          <span class="tool-badge">🔧 Tool Use</span>
+          <span class="tool-name">${escapeHtml((item.name as string) || 'unknown')}</span>
+        </div>`;
+      } else if (itemType === 'tool_result') {
+        const isError = (item.is_error as boolean) || false;
+        const resultContent = item.content || '';
+        html += `<div class="content-item tool-result ${isError ? 'error' : ''}">
+          <span class="tool-badge">${isError ? '❌' : '✅'} Tool Result</span>
+          ${item.tool_use_id ? `<span class="tool-id">${escapeHtml(item.tool_use_id as string)}</span>` : ''}
+          <pre class="result-content">${escapeHtml(String(resultContent))}</pre>
+        </div>`;
+      } else if (itemType === 'thinking') {
+        html += `<details class="content-item thinking" open>
+          <summary>💭 Thinking</summary>
+          <pre>${escapeHtml((item.text as string) || '')}</pre>
+        </details>`;
+      } else {
+        html += `<div class="content-item unknown">
+          <span class="item-type">${escapeHtml(itemType)}</span>
+        </div>`;
+      }
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  return `<pre class="content-json">${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
+}
+
+/**
+ * Format text content with basic markdown-like styling
+ */
+function formatTextContent(text: string): string {
+  // Escape first
+  let formatted = escapeHtml(text);
+
+  // Basic code blocks
+  formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+
+  // Inline code
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  return `<div class="text-content">${formatted}</div>`;
+}
+
+/**
+ * Get message type icon and label
+ */
+function getMessageTypeInfo(type: string): { icon: string; label: string; class: string } {
+  const types: Record<string, { icon: string; label: string; class: string }> = {
+    user: { icon: '👤', label: 'User', class: 'user-message' },
+    assistant: { icon: '🤖', label: 'Assistant', class: 'assistant-message' },
+    system: { icon: '⚙️', label: 'System', class: 'system-message' },
+    summary: { icon: '📋', label: 'Summary', class: 'summary-message' },
+    'file-history-snapshot': { icon: '📸', label: 'Snapshot', class: 'snapshot-message' },
+    'queue-operation': { icon: '🔄', label: 'Queue', class: 'queue-message' },
+  };
+  return types[type] || { icon: '📨', label: type, class: 'unknown-message' };
+}
+
+/**
+ * Generate HTML for a single entry
+ */
+function renderEntry(entry: ClaudeRawEntry, index: number): string {
+  const typeInfo = getMessageTypeInfo(entry.type);
+  const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '';
+  const uuid = entry.uuid ? `<span class="uuid" title="${escapeHtml(entry.uuid)}">${entry.uuid.substring(0, 8)}...</span>` : '';
+  const entryId = generateEntryId(index);
+  const needsLimit = shouldLimitContent(entry);
+
+  return `
+    <div class="entry ${typeInfo.class}" data-needs-limit="${needsLimit}">
+      <div class="entry-header">
+        <span class="entry-icon">${typeInfo.icon}</span>
+        <span class="entry-type">${typeInfo.label}</span>
+        <span class="entry-meta">
+          ${uuid}
+          ${timestamp ? `<span class="timestamp">${timestamp}</span>` : ''}
+        </span>
+      </div>
+      <div class="entry-content" id="${entryId}">
+        ${formatContent(entry)}
+      </div>
+      ${needsLimit ? `
+        <button class="expand-btn" onclick="toggleEntry('${entryId}', this)" aria-label="Toggle content">
+          <span class="btn-text">Show more</span>
+          <span class="btn-icon">▼</span>
+        </button>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Generate HTML for a complete round
+ */
+export function renderRoundToHtml(round: Round, options: RenderOptions = {}): string {
+  const { title = `Round #${round.roundNumber}`, theme = 'light' } = options;
+
+  const entriesHtml = round.entries.map((entry, i) => {
+    // Reconstruct entry from raw content
+    const parsed = JSON.parse(entry.rawContent) as ClaudeRawEntry;
+    return renderEntry(parsed, i);
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Claude Code Session</title>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f7fa;
+      --bg-entry: #f8f9fa;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --border-color: #e1e8ed;
+      --accent-color: #2563eb;
+      --user-bg: #e3f2fd;
+      --assistant-bg: #f0f9ff;
+      --system-bg: #fff3e0;
+      --error-bg: #fee2e2;
+      --success-bg: #dcfce7;
+      --expand-bg: #f3f4f6;
+      --expand-hover: #e5e7eb;
+    }
+
+    .dark-theme {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-entry: #252525;
+      --text-primary: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --border-color: #404040;
+      --accent-color: #3b82f6;
+      --user-bg: #1e3a5f;
+      --assistant-bg: #0c4a6e;
+      --system-bg: #3d2914;
+      --error-bg: #3f1a1a;
+      --success-bg: #1a3f1a;
+      --expand-bg: #374151;
+      --expand-hover: #4b5563;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background: var(--bg-secondary);
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      border: 1px solid var(--border-color);
+    }
+
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 1.8em;
+    }
+
+    .header .meta {
+      color: var(--text-secondary);
+      font-size: 0.9em;
+    }
+
+    .entry {
+      background: var(--bg-entry);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .entry-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9em;
+    }
+
+    .entry-icon { font-size: 1.2em; }
+    .entry-type { font-weight: 600; }
+
+    .entry-meta {
+      margin-left: auto;
+      display: flex;
+      gap: 15px;
+      color: var(--text-secondary);
+      font-size: 0.85em;
+    }
+
+    .uuid {
+      font-family: monospace;
+      cursor: help;
+    }
+
+    .entry-content {
+      padding: 16px;
+      max-height: 400px;
+      overflow: hidden;
+      position: relative;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .entry-content.collapsed {
+      max-height: 400px;
+    }
+
+    .entry-content.collapsed::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: linear-gradient(transparent, var(--bg-entry));
+      pointer-events: none;
+    }
+
+    .entry-content.expanded {
+      max-height: none;
+    }
+
+    .entry-content.expanded::after {
+      display: none;
+    }
+
+    .expand-btn {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--expand-bg);
+      border: none;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.9em;
+      font-weight: 500;
+      transition: background 0.2s ease;
+    }
+
+    .expand-btn:hover {
+      background: var(--expand-hover);
+    }
+
+    .expand-btn .btn-icon {
+      transition: transform 0.3s ease;
+      font-size: 0.8em;
+    }
+
+    .expand-btn.expanded .btn-icon {
+      transform: rotate(180deg);
+    }
+
+    .user-message { border-left: 4px solid #2563eb; }
+    .assistant-message { border-left: 4px solid #0891c2; }
+    .system-message { border-left: 4px solid #f59e0b; }
+
+    .command {
+      background: var(--user-bg);
+      padding: 12px 16px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    .command-name {
+      background: #2563eb;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-weight: 600;
+    }
+
+    .command-args {
+      margin-left: 10px;
+      color: var(--text-secondary);
+    }
+
+    .content-array {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .content-item {
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border-left: 3px solid var(--border-color);
+    }
+
+    .tool-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    .tool-use .tool-badge { background: #8b5cf6; color: white; }
+    .tool-result { border-left-color: #10b981; }
+    .tool-result.error { border-left-color: #ef4444; }
+    .tool-result .tool-badge { background: #10b981; color: white; }
+    .tool-result.error .tool-badge { background: #ef4444; color: white; }
+
+    .result-content {
+      margin: 10px 0 0 0;
+      padding: 12px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      font-size: 0.9em;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .thinking {
+      border-left-color: #a855f7;
+    }
+
+    .thinking summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #a855f7;
+    }
+
+    .thinking pre {
+      margin: 10px 0 0 0;
+      padding: 12px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      font-size: 0.9em;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: var(--system-bg);
+      border-radius: 8px;
+    }
+
+    pre, code {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 0.9em;
+    }
+
+    .content-text, .content-json {
+      margin: 0;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .text-content {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .text-content pre {
+      background: var(--bg-primary);
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .queue-message {
+      opacity: 0.7;
+      font-size: 0.9em;
+    }
+
+    .no-content {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body class="${theme === 'dark' ? 'dark-theme' : ''}">
+  <div class="container">
+    <div class="header">
+      <h1>${escapeHtml(title)}</h1>
+      <div class="meta">
+        <span>📦 ${round.entries.length} entries</span>
+        <span>🕐 ${new Date(round.startTimestamp).toLocaleString()} - ${new Date(round.endTimestamp).toLocaleString()}</span>
+      </div>
+      <div class="meta" style="margin-top: 10px;">
+        <strong>Summary:</strong> ${escapeHtml(round.summary)}
+      </div>
+    </div>
+
+    <div class="entries">
+      ${entriesHtml}
+    </div>
+  </div>
+
+  <script>
+    // Toggle entry content visibility
+    function toggleEntry(entryId, button) {
+      const content = document.getElementById(entryId);
+      const btnText = button.querySelector('.btn-text');
+      const isExpanded = content.classList.contains('expanded');
+
+      if (isExpanded) {
+        content.classList.remove('expanded');
+        content.classList.add('collapsed');
+        button.classList.remove('expanded');
+        btnText.textContent = 'Show more';
+      } else {
+        content.classList.remove('collapsed');
+        content.classList.add('expanded');
+        button.classList.add('expanded');
+        btnText.textContent = 'Show less';
+      }
+    }
+
+    // Initialize entries with long content as collapsed
+    document.addEventListener('DOMContentLoaded', function() {
+      const entries = document.querySelectorAll('.entry[data-needs-limit="true"]');
+      entries.forEach(function(entry) {
+        const content = entry.querySelector('.entry-content');
+        if (content) {
+          content.classList.add('collapsed');
+        }
+      });
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Generate HTML filename for a round
+ */
+export function getHtmlFilename(sourceFile: string, roundId: number): string {
+  const basename = path.basename(sourceFile, '.jsonl');
+  return `${basename}-${roundId}.html`;
+}
