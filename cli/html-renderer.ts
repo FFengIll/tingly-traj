@@ -490,7 +490,7 @@ export function renderRoundToHtml(round: Round, options: RenderOptions = {}): st
         <span>🕐 ${new Date(round.startTimestamp).toLocaleString()} - ${new Date(round.endTimestamp).toLocaleString()}</span>
       </div>
       <div class="meta" style="margin-top: 10px;">
-        <strong>Summary:</strong> ${escapeHtml(round.summary)}
+        <strong>Instruction:</strong> ${escapeHtml(round.summary)}
       </div>
     </div>
 
