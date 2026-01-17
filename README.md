@@ -26,6 +26,12 @@ Once started via `pnpm dev`, access the web UI at `http://localhost:5173` to bro
 
 ## CLI Usage
 
+### Search and extract
+```bash
+# see help for details
+python script/extract_traj_for_cc.py --help
+```
+
 ### List all rounds
 
 ```bash
