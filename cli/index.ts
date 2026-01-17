@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CLI for extracting and rendering rounds from Claude Code session data
 import { readSessionFile, extractRounds, listRounds, extractRound } from './round-extractor.ts';
-import { renderRoundToHtml, getHtmlFilename } from './html-renderer.ts';
+import { renderRoundToHtml, getHtmlFilename, renderFileToHtml, getFileHtmlFilename } from './html-renderer.ts';
 import type { RoundListOutput } from './types.ts';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -14,13 +14,14 @@ Commands:
   extract <file> <round>         Extract a specific round to stdout
   extract-all <file> [options]   Extract all rounds to JSONL files
   render <file> <round>          Render a specific round to HTML
-  render-all <file> [options]    Render all rounds to HTML files
+  render-all <file> [options]    Render all rounds to separate HTML files
+  render-file <file> [options]   Render entire file to a single HTML
   help                           Show this help message
 
-Options for extract-all/render-all:
+Options for extract-all/render-all/render-file:
   -o, --output <dir>             Output directory (default: ./output)
 
-Options for render/render-all:
+Options for render/render-all/render-file:
   --theme <theme>                Theme: light or dark (default: light)
 
 Examples:
@@ -36,8 +37,11 @@ Examples:
   # Render a specific round to HTML
   pnpm cli render traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl 0 -o ./output
 
-  # Render all rounds to HTML files
+  # Render all rounds to separate HTML files
   pnpm cli render-all traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl -o ./html --theme dark
+
+  # Render entire file to a single HTML
+  pnpm cli render-file traj-yz-cc-tb/tb-bugfix/tb-bugfix-ci.jsonl -o ./html --theme dark
 `;
 
 function printRoundList(output: RoundListOutput): void {
@@ -223,7 +227,7 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
-      const html = renderRoundToHtml(round, { theme });
+      const html = renderRoundToHtml(round, { theme, sourceFile: filePath });
       const filename = getHtmlFilename(filePath, roundNum);
       const outputPath = path.join(outputDir, filename);
       await fs.writeFile(outputPath, html, 'utf-8');
@@ -260,7 +264,7 @@ async function main(): Promise<void> {
 
       let successCount = 0;
       for (const round of rounds) {
-        const html = renderRoundToHtml(round, { theme });
+        const html = renderRoundToHtml(round, { theme, sourceFile: filePath });
         const filename = getHtmlFilename(filePath, round.roundNumber);
         const outputPath = path.join(outputDir, filename);
         await fs.writeFile(outputPath, html, 'utf-8');
@@ -277,6 +281,41 @@ async function main(): Promise<void> {
       const indexPath = path.join(outputDir, 'index.html');
       await fs.writeFile(indexPath, indexHtml, 'utf-8');
       console.log(`📑 Index file created: ${indexPath}\n`);
+    } catch (error) {
+      console.error(`❌ Error: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  } else if (command === 'render-file') {
+    if (args.length < 2) {
+      console.error('❌ Error: File path required');
+      console.log(USAGE);
+      process.exit(1);
+    }
+
+    const filePath = args[1];
+    const { outputDir, theme } = parseOutputOptions(args.slice(2));
+
+    try {
+      await ensureDir(outputDir);
+
+      const entries = await readSessionFile(filePath);
+      const rounds = extractRounds(entries);
+
+      if (rounds.length === 0) {
+        console.log('⚠️  No rounds found in file');
+        process.exit(0);
+      }
+
+      console.log(`\n📁 Rendering entire file to HTML: ${filePath}`);
+      console.log(`   Output: ${outputDir} (${theme} theme)`);
+      console.log(`   Rounds: ${rounds.length}`);
+
+      const html = renderFileToHtml(rounds, filePath, { theme });
+      const filename = getFileHtmlFilename(filePath);
+      const outputPath = path.join(outputDir, filename);
+      await fs.writeFile(outputPath, html, 'utf-8');
+
+      console.log(`\n✅ File rendered to: ${outputPath}\n`);
     } catch (error) {
       console.error(`❌ Error: ${(error as Error).message}`);
       process.exit(1);
