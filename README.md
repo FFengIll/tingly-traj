@@ -26,10 +26,9 @@ Once started via `pnpm dev`, access the web UI at `http://localhost:5173` to bro
 
 ## CLI Usage
 
-### Search and extract
 ```bash
-# see help for details
-python script/extract_traj_for_cc.py --help
+# See help for details
+pnpm cli --help
 ```
 
 ### List all rounds
@@ -41,23 +40,31 @@ pnpm cli list path/to/cc-session.jsonl
 ### Extract rounds
 
 ```bash
-# Extract all rounds → outputs: {basename}-rounds.json
+# Extract all rounds → outputs: {basename}.json
 pnpm cli extract path/to/cc-session.jsonl -o ./output
 
 # Extract specific round → outputs to stdout
 pnpm cli extract path/to/cc-session.jsonl -r 0 > round-0.jsonl
 
-# Search by keyword → outputs: {basename}-rounds-{first}-{last}.json
+# Search by keyword → outputs: {basename}.{first}-{last}.json
 pnpm cli extract path/to/cc-session.jsonl -k "bugfix" -o ./output
+
+# Extract with system prompt prepended
+pnpm cli extract session.jsonl -s system.json -o ./output
+
+# Extract and auto-render to HTML
+pnpm cli extract session.jsonl --render --theme dark -o ./output
+# Or short
+pnpm cli extract session.jsonl --render -o ./output
 ```
 
 ### Render HTML
 
 ```bash
 # Render single file → outputs: {basename}.html (single page with TOC)
-pnpm cli render ./output/cc-session.jsonl -o ./html
+pnpm cli render ./output/cc-session.json -o ./html --theme dark
 
-# Batch render directory → scans for *-rounds.json, renders each to HTML
+# Batch render directory → scans for .json files, renders each to HTML
 pnpm cli render-all ./output -o ./html --theme dark
 ```
 
