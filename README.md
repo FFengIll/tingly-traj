@@ -64,7 +64,7 @@ pnpm cli render-all ./output -o ./html --theme dark
 ## Project Structure
 
 ```
-cc-pick/
+tingly-traj/
 ├── cli/          # CLI tool
 ├── server/       # Express server
 ├── src/          # React frontend

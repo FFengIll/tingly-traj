@@ -84,7 +84,7 @@ export default function Layout({ selectedProject, onProjectChange, onSearchChang
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                cc-pick
+                tingly-traj
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                 Claude Code Session Viewer

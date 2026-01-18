@@ -1,4 +1,4 @@
-// Express server for cc-pick
+// Express server for tingly-traj
 import express from 'express';
 import cors from 'cors';
 import sessionRoutes from './routes/sessions.js';
@@ -21,5 +21,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`cc-pick server running on http://localhost:${PORT}`);
+  console.log(`tingly-traj server running on http://localhost:${PORT}`);
 });

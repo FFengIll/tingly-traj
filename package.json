@@ -1,10 +1,10 @@
 {
-  "name": "cc-pick",
+  "name": "tingly-traj",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "cc-pick-cli": "./cli/index.ts"
+    "tingly-traj-cli": "./cli/index.ts"
   },
   "scripts": {
     "dev": "concurrently \"pnpm:dev:*\"",

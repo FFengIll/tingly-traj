@@ -7,7 +7,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 const USAGE = `
-Usage: cc-pick-cli <command> [options]
+Usage: tingly-traj-cli <command> [options]
 
 Commands:
   list <file>                    List all rounds in a session file
