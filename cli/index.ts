@@ -13,7 +13,7 @@ Commands:
   list <file>                    List all rounds in a session file
   extract <file> [options]       Extract rounds
   render <rounds.json> [options] Render a .json file to a single HTML
-  render-all <dir> [options]     Scan dir for .json files and batch render
+  batch-render <dir> [options]   Scan dir for .json/.jsonl files and batch render
   help                           Show this help message
 
 Options for extract:
@@ -23,9 +23,10 @@ Options for extract:
   -s, --system <file>            Prepend system entries from JSON file
   --render                       Auto-render extracted rounds to HTML
 
-Options for render/render-all:
+Options for render/batch-render:
   -o, --output <dir>             Output directory (default: ./output)
   --theme <theme>                Theme: light or dark (default: light)
+  -r, --recursive                Scan directories recursively (batch-render only)
 
 Examples:
   # List all rounds
@@ -49,8 +50,11 @@ Examples:
   # Render a single .json file to HTML
   pnpm cli render ./output/tb-bugfix-ci.json -o ./html --theme dark
 
-  # Batch render all .json files in a directory
-  pnpm cli render-all ./output -o ./html --theme dark
+  # Batch render all .json/.jsonl files in a directory
+  pnpm cli batch-render ./output -o ./html --theme dark
+
+  # Batch render recursively
+  pnpm cli batch-render ./data -o ./html -r --theme dark
 `;
 
 function printRoundList(output: RoundListOutput): void {
@@ -86,6 +90,7 @@ async function main(): Promise<void> {
   const parseOutputOptions = (argsRest: string[]) => {
     let outputDir = './output';
     let theme: 'light' | 'dark' = 'light';
+    let recursive = false;
 
     for (let i = 0; i < argsRest.length; i++) {
       if (argsRest[i] === '-o' || argsRest[i] === '--output') {
@@ -107,10 +112,12 @@ async function main(): Promise<void> {
           }
           i++;
         }
+      } else if (argsRest[i] === '-r' || argsRest[i] === '--recursive') {
+        recursive = true;
       }
     }
 
-    return { outputDir, theme };
+    return { outputDir, theme, recursive };
   };
 
   // Extract options parsing
@@ -368,7 +375,7 @@ async function main(): Promise<void> {
       console.error(`❌ Error: ${(error as Error).message}`);
       process.exit(1);
     }
-  } else if (command === 'render-all') {
+  } else if (command === 'batch-render') {
     if (args.length < 2) {
       console.error('❌ Error: Directory path required');
       console.log(USAGE);
@@ -376,52 +383,101 @@ async function main(): Promise<void> {
     }
 
     const inputDir = args[1];
-    const { outputDir, theme } = parseOutputOptions(args.slice(2));
+    const { outputDir, theme, recursive } = parseOutputOptions(args.slice(2));
+
+    /**
+     * Recursively scan directory for JSON and JSONL files
+     */
+    async function scanDirectory(dir: string, recursive: boolean): Promise<string[]> {
+      const files: string[] = [];
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory() && recursive) {
+          const subFiles = await scanDirectory(fullPath, recursive);
+          files.push(...subFiles);
+        } else if (entry.isFile()) {
+          if (entry.name.endsWith('.json') || entry.name.endsWith('.jsonl')) {
+            files.push(fullPath);
+          }
+        }
+      }
+
+      return files;
+    }
 
     try {
       await ensureDir(outputDir);
 
-      // Scan directory for .json files
-      const files = await fs.readdir(inputDir);
-      const roundsJsonFiles = files.filter(f => f.endsWith('.json'));
+      // Scan directory for .json and .jsonl files
+      const files = await scanDirectory(inputDir, recursive);
 
-      if (roundsJsonFiles.length === 0) {
-        console.log('⚠️  No .json files found in directory');
+      if (files.length === 0) {
+        console.log(`⚠️  No .json/.jsonl files found in directory`);
         process.exit(0);
       }
 
-      console.log(`\n📁 Found ${roundsJsonFiles.length} .json files`);
-      console.log(`   Input: ${inputDir}`);
+      console.log(`\n📁 Found ${files.length} file(s) (.json/.jsonl)`);
+      console.log(`   Input: ${inputDir}${recursive ? ' (recursive)' : ''}`);
       console.log(`   Output: ${outputDir} (${theme} theme)`);
       console.log('─'.repeat(80));
 
       let successCount = 0;
-      for (const file of roundsJsonFiles) {
-        const jsonPath = path.join(inputDir, file);
+      let jsonCount = 0;
+      let jsonlCount = 0;
+
+      for (const filePath of files) {
+        const ext = path.extname(filePath);
+        const fileName = path.basename(filePath);
+
         try {
-          // Read rounds from JSON file
-          const jsonContent = await fs.readFile(jsonPath, 'utf-8');
-          const rounds = JSON.parse(jsonContent) as Round[];
+          if (ext === '.json') {
+            jsonCount++;
+            // Read rounds from JSON file
+            const jsonContent = await fs.readFile(filePath, 'utf-8');
+            const rounds = JSON.parse(jsonContent) as Round[];
 
-          if (rounds.length === 0) {
-            console.log(`  ⚠️  ${file}: No rounds found, skipping`);
-            continue;
+            if (rounds.length === 0) {
+              console.log(`  ⚠️  ${fileName}: No rounds found, skipping`);
+              continue;
+            }
+
+            // Render all rounds to a single HTML file
+            const html = renderFileToHtml(rounds, filePath, { theme });
+            const basename = path.basename(fileName, '.json');
+            const outputPath = path.join(outputDir, `${basename}.html`);
+            await fs.writeFile(outputPath, html, 'utf-8');
+            successCount++;
+            console.log(`  ✅ ${fileName} → ${basename}.html (${rounds.length} rounds)`);
+          } else if (ext === '.jsonl') {
+            jsonlCount++;
+            // Read entries from JSONL file and extract rounds
+            const entries = await readSessionFile(filePath);
+            const rounds = extractRounds(entries);
+
+            if (rounds.length === 0) {
+              console.log(`  ⚠️  ${fileName}: No rounds found, skipping`);
+              continue;
+            }
+
+            // Render all rounds to a single HTML file
+            const html = renderFileToHtml(rounds, filePath, { theme });
+            const basename = path.basename(fileName, '.jsonl');
+            const outputPath = path.join(outputDir, `${basename}.html`);
+            await fs.writeFile(outputPath, html, 'utf-8');
+            successCount++;
+            console.log(`  ✅ ${fileName} → ${basename}.html (${rounds.length} rounds)`);
           }
-
-          // Render all rounds to a single HTML file
-          const html = renderFileToHtml(rounds, jsonPath, { theme });
-          const basename = path.basename(file, '.json');
-          const outputPath = path.join(outputDir, `${basename}.html`);
-          await fs.writeFile(outputPath, html, 'utf-8');
-          successCount++;
-          console.log(`  ✅ ${file} → ${basename}.html (${rounds.length} rounds)`);
         } catch (error) {
-          console.log(`  ❌ ${file}: ${(error as Error).message}`);
+          console.log(`  ❌ ${fileName}: ${(error as Error).message}`);
         }
       }
 
       console.log('─'.repeat(80));
-      console.log(`\n✅ Successfully rendered ${successCount}/${roundsJsonFiles.length} files\n`);
+      console.log(`\n📊 Statistics: ${jsonCount} .json files, ${jsonlCount} .jsonl files`);
+      console.log(`✅ Successfully rendered ${successCount}/${files.length} files\n`);
     } catch (error) {
       console.error(`❌ Error: ${(error as Error).message}`);
       process.exit(1);
