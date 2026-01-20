@@ -61,14 +61,28 @@ pnpm cli extract session.jsonl --render -o ./output
 ### Render HTML
 
 ```bash
-# Render single file → outputs: {basename}.html (single page with TOC)
+# Render single file (.json or .jsonl) → outputs: {basename}.html (single page with TOC)
 pnpm cli render ./output/cc-session.json -o ./html --theme dark
+pnpm cli render ./data/session.jsonl -o ./html --theme dark
 
 # Batch render directory → scans for .json/.jsonl files, renders each to HTML
 pnpm cli batch-render ./output -o ./html --theme dark
 
 # Batch render recursively (includes subdirectories)
 pnpm cli batch-render ./data -o ./html -r --theme dark
+```
+
+### Thinking metadata
+
+```bash
+# Scan directory for .jsonl files with thinking metadata and copy them
+pnpm cli thinking ./traj-yz-cc-tb -o ./output/thinking
+
+# Scan recursively for thinking files
+pnpm cli thinking ./data -r -o ./output/thinking
+
+# Extract rounds with thinking to individual .jsonl files
+pnpm cli thinking ./traj-yz-cc-tb --extract -o ./output/thinking
 ```
 
 ## Project Structure
