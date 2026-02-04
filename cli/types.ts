@@ -68,6 +68,10 @@ export interface RecordRequestBody {
   stream?: boolean;
   system?: Array<{ type: string; text: string }>;
   tools?: unknown[];
+  metadata?: {
+    user_id?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
