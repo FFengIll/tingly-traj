@@ -2,6 +2,7 @@
 // CLI for extracting and rendering rounds from Claude Code session data
 import { readSessionFile, extractRounds, listRounds, extractRound, prependSystemEntries, loadSystemEntries, extractContextFields, hasThinking, extractRoundsWithThinking } from './round-extractor.ts';
 import { renderFileToHtml } from './html-renderer.ts';
+import { renderRecordToHtml } from './record-renderer.ts';
 import type { RoundListOutput, Round } from './types.ts';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -10,24 +11,25 @@ const USAGE = `
 Usage: tingly-traj-cli <command> [options]
 
 Commands:
-  list <file>                    List all rounds in a session file
-  extract <file> [options]       Extract rounds
-  render <file.jsonl> [options]  Render a .jsonl or .json file to HTML
-  batch-render <dir> [options]   Scan dir for .json/.jsonl files and batch render
-  thinking <dir> [options]       Scan dir for .jsonl files with thinking metadata and export
-  help                           Show this help message
+  list <file>                       List all rounds in a session file
+  extract <file> [options]          Extract rounds
+  render <file.jsonl> [options]     Render a .jsonl or .json file to HTML
+  batch-render <dir> [options]      Scan dir for .json/.jsonl files and batch render
+  thinking <dir> [options]          Scan dir for .jsonl files with thinking metadata and export
+  render-record <file.jsonl> [options]  Render OpenRouter API record file to HTML
+  help                              Show this help message
 
 Options for extract:
-  -o, --output <dir>             Output directory (default: ./output)
-  -r, --round <num>              Extract specific round to stdout
-  -k, --keyword <keyword>        Extract rounds matching keyword
-  -s, --system <file>            Prepend system entries from JSON file
-  --render                       Auto-render extracted rounds to HTML
+  -o, --output <dir>                Output directory (default: ./output)
+  -r, --round <num>                 Extract specific round to stdout
+  -k, --keyword <keyword>           Extract rounds matching keyword
+  -s, --system <file>               Prepend system entries from JSON file
+  --render                          Auto-render extracted rounds to HTML
 
-Options for render/batch-render:
-  -o, --output <dir>             Output directory (default: ./output)
-  --theme <theme>                Theme: light or dark (default: light)
-  -r, --recursive                Scan directories recursively (batch-render only)
+Options for render/batch-render/render-record:
+  -o, --output <dir>                Output directory (default: ./output)
+  --theme <theme>                   Theme: light or dark (default: light)
+  -r, --recursive                   Scan directories recursively (batch-render only)
 
 Options for thinking:
   -o, --output <dir>             Output directory (default: ./output/thinking)
@@ -638,6 +640,36 @@ async function main(): Promise<void> {
       if (thinkingFileCount === 0) {
         console.log('💡 Tip: Make sure your .jsonl files contain thinking fields with non-empty content\n');
       }
+    } catch (error) {
+      console.error(`❌ Error: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  } else if (command === 'render-record') {
+    if (args.length < 2) {
+      console.error('❌ Error: File path required');
+      console.log(USAGE);
+      process.exit(1);
+    }
+
+    const filePath = args[1];
+    const argsRest = args.slice(2);
+    const { outputDir, theme } = parseOutputOptions(argsRest);
+
+    try {
+      await ensureDir(outputDir);
+
+      const fileBasename = path.basename(filePath, '.jsonl');
+      const outputPath = path.join(outputDir, `${fileBasename}.html`);
+
+      console.log(`\n📁 Rendering record file: ${filePath}`);
+      console.log(`   Output: ${outputPath}`);
+      console.log(`   Theme: ${theme}`);
+      console.log('─'.repeat(80));
+
+      const html = await renderRecordToHtml(filePath, { theme, sourceFile: filePath });
+      await fs.writeFile(outputPath, html, 'utf-8');
+
+      console.log(`✅ Rendered to: ${outputPath}\n`);
     } catch (error) {
       console.error(`❌ Error: ${(error as Error).message}`);
       process.exit(1);

@@ -72,6 +72,16 @@ pnpm cli batch-render ./output -o ./html --theme dark
 pnpm cli batch-render ./data -o ./html -r --theme dark
 ```
 
+### Render OpenRouter API Records
+
+```bash
+# Render OpenRouter record file (.jsonl) → outputs: {basename}.html (chat-style view)
+pnpm cli render-record ~/desktop/claude_code.openrouter.2026-02-02-08.jsonl -o ./html
+
+# With dark theme
+pnpm cli render-record path/to/record.jsonl -o ./html --theme dark
+```
+
 ### Thinking metadata
 
 ```bash

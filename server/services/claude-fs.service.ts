@@ -155,13 +155,44 @@ export const claudeFsService: ClaudeFsService = {
     sessionId: string,
     projectPath: string
   ): Promise<SessionDetail | null> {
+    let sessionPath: string;
+    let actualProjectPath = projectPath;
+    let messages: SessionMessage[] = [];
+
+    // First, try the exact path
     const encodedProject = encodeProjectPath(projectPath);
-    const sessionPath = path.join(PROJECTS_DIR, encodedProject, `${sessionId}.jsonl`);
+    sessionPath = path.join(PROJECTS_DIR, encodedProject, `${sessionId}.jsonl`);
 
     console.log(`Reading session from: ${sessionPath}`);
 
-    const messages = await readSessionFile(sessionPath);
+    messages = await readSessionFile(sessionPath);
     console.log(`Found ${messages.length} messages`);
+
+    // If not found, search all project directories for this session file
+    if (messages.length === 0) {
+      console.log(`Session not found at expected path, searching all projects...`);
+      try {
+        const projectDirs = await fs.readdir(PROJECTS_DIR);
+        for (const dir of projectDirs) {
+          if (dir.startsWith('.')) continue; // Skip hidden files
+          const candidatePath = path.join(PROJECTS_DIR, dir, `${sessionId}.jsonl`);
+          try {
+            await fs.access(candidatePath);
+            console.log(`Found session at: ${candidatePath}`);
+            // Decode the project path from the found directory
+            actualProjectPath = decodeProjectPath(dir);
+            sessionPath = candidatePath;
+            messages = await readSessionFile(sessionPath);
+            console.log(`Found ${messages.length} messages from corrected path: ${actualProjectPath}`);
+            break;
+          } catch {
+            // File doesn't exist here, continue searching
+          }
+        }
+      } catch (error) {
+        console.error('Error searching for session file:', error);
+      }
+    }
 
     if (messages.length === 0) {
       return null;
@@ -174,7 +205,7 @@ export const claudeFsService: ClaudeFsService = {
     return {
       sessionId,
       display: entry?.display || '',
-      project: projectPath,
+      project: actualProjectPath,
       createdAt: messages[0]?.timestamp || Date.now(),
       messages: messages.map(convertMessage),
     };
